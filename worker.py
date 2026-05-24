@@ -10,7 +10,7 @@ import logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-from langchain_core.prompts import PromptTemplate  # Updated import per deprecation notice
+from langchain_core.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.document_loaders import PyPDFLoader
@@ -45,6 +45,7 @@ def init_llm():
     model_parameters = {
         "max_new_tokens": 256, # Specify the exact maximum number of tokens the AI should generate in its response
         "temperature": 0.1, # Controls the randomness of the model's text generation
+        "stop_sequences": ["Helpful Answer:", "\n\nQuestion:"] # Model stops itself if it sees these preventing loops or hallucinations
     }
 
     # Initialize Llama LLM using the updated WatsonxLLM API
@@ -106,6 +107,19 @@ def process_document(document_path):
     except Exception as e:
         logger.warning("Could not retrieve collections from Chroma: %s", e)
 
+    # Define a strict, clean prompt template
+    # This helps the LLM give a polished answer
+    template = """You are a helpful assistant. Use the following pieces of context to answer the question at the end. 
+If you don't know the answer, just say that you don't know, do not try to make up an answer.
+Keep the answer concise and direct. Do not repeat the instructions or explain your thinking process.
+
+Context: {context}
+
+Question: {question}
+Helpful Answer:"""
+
+    custom_prompt = PromptTemplate(template=template, input_variables=["context", "question"])
+
     # Build the Retrieval Question Answer chain, which utilises the LLM and retriever for answering questions.
     # The chain uses the initialised LLM and the embeddings database to answer questions on the processed document
     conversation_retrieval_chain = RetrievalQA.from_chain_type(
@@ -118,8 +132,8 @@ def process_document(document_path):
             search_kwargs={'k': 6, 'lambda_mult': 0.25}
         ),
         return_source_documents=False, # We just want the final text answer
-        input_key="question" # Defines what the input variable name when we invoke the chain with a question later
-        # chain_type_kwargs={"prompt": prompt}  # if you are using a prompt template, uncomment this part
+        input_key="question", # Defines what the input variable name when we invoke the chain with a question later
+        chain_type_kwargs={"prompt": custom_prompt}  # Add prompt template
     )
 
     logger.info("RetrievalQA chain created successfully.")
