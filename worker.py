@@ -1,3 +1,7 @@
+# Document processing and conversation management worker
+# Part of the chatbot app that processes user messages and documents
+# It uses LangChain library
+
 import os
 import torch
 import logging
@@ -14,32 +18,32 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma  # New import path
 from langchain_ibm import WatsonxLLM
 
-# Check for GPU availability and set the appropriate device for computation.
+# Automatically detect and select the fastest available hardware to run your code
+# Checks if a powerful GPU is available. Fallback on CPU if not
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 
 # Global variables
-conversation_retrieval_chain = None
-chat_history = []
-llm_hub = None
+conversation_retrieval_chain = None # RetrievalQA chain
+chat_history = [] # To be able to hold history of the chat
+llm_hub = None # Object for LLM
 embeddings = None
 
-# Function to initialize the language model and its embeddings
+# Function to initialise the LLM and its embeddings
 def init_llm():
     global llm_hub, embeddings
 
     logger.info("Initializing WatsonxLLM and embeddings...")
 
-    # Llama Model Configuration
+    # Llama Model Configuration constants
+    # Using an AI model from IBM watsonx
     MODEL_ID = "meta-llama/llama-3-3-70b-instruct"
     WATSONX_URL = "https://us-south.ml.cloud.ibm.com"
     PROJECT_ID = "skills-network"
 
-    # Use the same parameters as before:
-    #   MAX_NEW_TOKENS: 256, TEMPERATURE: 0.1
+    # Model parameters
     model_parameters = {
-        # "decoding_method": "greedy",
-        "max_new_tokens": 256,
-        "temperature": 0.1,
+        "max_new_tokens": 256, # Specify the exact maximum number of tokens the AI should generate in its response
+        "temperature": 0.1, # Controls the randomness of the model's text generation
     }
 
     # Initialize Llama LLM using the updated WatsonxLLM API
@@ -49,10 +53,17 @@ def init_llm():
         project_id=PROJECT_ID,
         params=model_parameters
     )
+
     logger.debug("WatsonxLLM initialized: %s", llm_hub)
 
-    #Initialize embeddings using a pre-trained model to represent the text data.
-    embeddings =  # create object of Hugging Face Instruct Embeddings with (model_name,  model_kwargs={"device": DEVICE} )
+    # Initialize embeddings using a pre-trained model to represent the text data.
+    # Embeddings are a way of translating human language into a format that a computer can actually understand (numbers, vectors etc)
+    # Sentence Transformers are a family of models that are specially trained to look at text and understand their overall meaning
+    # Create Hugging Face Embeddings
+    embeddings =  HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLLM-L6-v2", # Fast and lightweight LLM model
+        model_kwargs={"device": DEVICE} # Extra configuration settings
+    )
     
     logger.debug("Embeddings initialized with model device: %s", DEVICE)
 
@@ -61,7 +72,8 @@ def process_document(document_path):
     global conversation_retrieval_chain
 
     logger.info("Loading document from path: %s", document_path)
-    # Load the document
+
+    # Load the document using PyPDFLoader library
     loader =  # ---> use PyPDFLoader and document_path from the function input parameter <---
     documents = loader.load()
     logger.debug("Loaded %d document(s)", len(documents))
@@ -71,7 +83,7 @@ def process_document(document_path):
     texts = text_splitter.split_documents(documents)
     logger.debug("Document split into %d text chunks", len(texts))
 
-    # Create an embeddings database using Chroma from the split text chunks.
+    # Create an Embeddings database using Chroma from the split text chunks.
     logger.info("Initializing Chroma vector store from documents...")
     db = Chroma.from_documents(texts, embedding=embeddings)
     logger.debug("Chroma vector store initialized.")
@@ -83,7 +95,8 @@ def process_document(document_path):
     except Exception as e:
         logger.warning("Could not retrieve collections from Chroma: %s", e)
 
-    # Build the QA chain, which utilizes the LLM and retriever for answering questions. 
+    # Build the Retrieval Question Answer chain, which utilises the LLM and retriever for answering questions.
+    # The chain uses the initialised LLM and the embeddings database to answer questions on the processed document
     conversation_retrieval_chain = RetrievalQA.from_chain_type(
         llm=llm_hub,
         chain_type="stuff",
@@ -100,9 +113,13 @@ def process_prompt(prompt):
     global chat_history
 
     logger.info("Processing prompt: %s", prompt)
-    # Query the model using the new .invoke() method
+
+    # Query the model using the new .invoke() method with a new prompt and current history
     output = conversation_retrieval_chain.invoke({"question": prompt, "chat_history": chat_history})
+
+    # LLM response to query
     answer = output["result"]
+
     logger.debug("Model response: %s", answer)
 
     # Update the chat history
