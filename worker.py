@@ -74,16 +74,25 @@ def process_document(document_path):
     logger.info("Loading document from path: %s", document_path)
 
     # Load the document using PyPDFLoader library
-    loader =  # ---> use PyPDFLoader and document_path from the function input parameter <---
+    loader =  PyPDFLoader(document_path)
     documents = loader.load()
+
     logger.debug("Loaded %d document(s)", len(documents))
 
-    # Split the document into chunks, set chunk_size=1024, and chunk_overlap=64. assign it to variable text_splitter
-    text_splitter = # ---> use Recursive Character TextSplitter and specify the input parameters <---
+    # Split the document into chunks using RecursiveCharacterTextSplitter
+    # Highly intelligent "smart-splitter" from the LangChain library
+    # Tries to break down document into pieces - but tries to keep semantic meaning together
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1024, # Maximum amount of characters per chunk
+        chunk_overlap=64 # 64-character overlap buffer. Can help model keep context even if sentences are split in half
+    )
     texts = text_splitter.split_documents(documents)
+
     logger.debug("Document split into %d text chunks", len(texts))
 
-    # Create an Embeddings database using Chroma from the split text chunks.
+    # Create an Embeddings database using Chroma from the split text chunks
+    # Chopped-up text is converted into numbers / vectors which is saved into a database system
+    # Vector store creation - "specialized, searchable AI brain"
     logger.info("Initializing Chroma vector store from documents...")
     db = Chroma.from_documents(texts, embedding=embeddings)
     logger.debug("Chroma vector store initialized.")
@@ -99,12 +108,18 @@ def process_document(document_path):
     # The chain uses the initialised LLM and the embeddings database to answer questions on the processed document
     conversation_retrieval_chain = RetrievalQA.from_chain_type(
         llm=llm_hub,
-        chain_type="stuff",
-        retriever=db.as_retriever(search_type="mmr", search_kwargs={'k': 6, 'lambda_mult': 0.25}),
-        return_source_documents=False,
-        input_key="question"
+        chain_type="stuff", # Tells LangChain to add all the retrieved document chunks directly into the prompt
+        retriever=db.as_retriever(
+            # Configures how the system searches the Chroma database
+            # MMR = Maximum Marginal Relevance. Tries to find relevant but diverse chunks to ensure the AI gets a well-rounded view of the answer
+            search_type="mmr", 
+            search_kwargs={'k': 6, 'lambda_mult': 0.25}
+        ),
+        return_source_documents=False, # We just want the final text answer
+        input_key="question" # Defines what the input variable name when we invoke the chain with a question later
         # chain_type_kwargs={"prompt": prompt}  # if you are using a prompt template, uncomment this part
     )
+
     logger.info("RetrievalQA chain created successfully.")
     
 # Function to process a user prompt
@@ -123,8 +138,7 @@ def process_prompt(prompt):
     logger.debug("Model response: %s", answer)
 
     # Update the chat history
-    # TODO: Append the prompt and the bot's response to the chat history using chat_history.append and pass `prompt` `answer` as arguments
-    # --> write your code here <--	
+    chat_history.append((prompt, answer))
     
     logger.debug("Chat history updated. Total exchanges: %d", len(chat_history))
 
