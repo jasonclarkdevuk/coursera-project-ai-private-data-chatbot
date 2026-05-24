@@ -12,10 +12,10 @@ logger = logging.getLogger(__name__)
 
 from langchain_core.prompts import PromptTemplate  # Updated import per deprecation notice
 from langchain.chains import RetrievalQA
-from langchain_community.embeddings import HuggingFaceInstructEmbeddings  # New import path
-from langchain_community.document_loaders import PyPDFLoader  # New import path
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import Chroma  # New import path
+from langchain_community.vectorstores import Chroma
 from langchain_ibm import WatsonxLLM
 
 # Automatically detect and select the fastest available hardware to run your code
@@ -60,8 +60,9 @@ def init_llm():
     # Embeddings are a way of translating human language into a format that a computer can actually understand (numbers, vectors etc)
     # Sentence Transformers are a family of models that are specially trained to look at text and understand their overall meaning
     # Create Hugging Face Embeddings
+    # HuggingFaceEmbeddings takes text exactly as it is written and converts it into a vector based purely on the words in the text
     embeddings =  HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLLM-L6-v2", # Fast and lightweight LLM model
+        model_name="sentence-transformers/all-MiniLM-L6-v2", # Fast and lightweight LLM model
         model_kwargs={"device": DEVICE} # Extra configuration settings
     )
     
