@@ -36,7 +36,8 @@ def init_llm():
 
     # Llama Model Configuration constants
     # Using an AI model from IBM watsonx
-    MODEL_ID = "meta-llama/llama-3-3-70b-instruct"
+    # Using different model to what was presented in tutorial (was no longer supported - 11B parameter Llama LLM model used instead)
+    MODEL_ID = "meta-llama/llama-3-2-11b-vision-instruct"
     WATSONX_URL = "https://us-south.ml.cloud.ibm.com"
     PROJECT_ID = "skills-network"
 
